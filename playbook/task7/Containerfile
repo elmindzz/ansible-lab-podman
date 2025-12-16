@@ -1,0 +1,4 @@
+FROM registry.access.redhat.com/ubi9/ubi
+LABEL maintainer="Elmin"
+RUN useradd -u 1111 fileman
+USER fileman

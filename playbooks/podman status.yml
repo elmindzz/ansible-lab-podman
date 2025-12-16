@@ -1,0 +1,46 @@
+---
+- name: Test localhost ansible project
+  hosts: localhost
+  become: true
+
+  tasks:
+# 1. Start podman service if not running
+    - name:  Start podman service
+      ansible.builtin.service:
+        name: podman
+        state: started
+        enabled: true
+# 2. Gather service facts 
+    - name:  Verify podman service is running
+      ansible.builtin.service_facts:  
+      
+
+# 3. Debug podman service info
+    - name: Debug - Show podman service info
+      ansible.builtin.debug:
+        var: services['podman.service']
+      when: "'podman.service' in services"
+
+# 4. Assert check podman service is running
+    - name: Assert podman service is running
+      ansible.builtin.assert:
+        that:
+          - "'podman.service' in services"
+          - "services['podman.service'].state == 'running'" 
+        success_msg: "Podman service is running"
+        fail_msg: "Podman service is not running"
+
+    - name: List all podman-related services
+      ansible.builtin.service_facts:
+
+    - name: Show only podman services
+      ansible.builtin.debug:
+        msg: "{{ item }}"
+      loop: >-
+        {{
+          services
+          | dict2items
+          | selectattr('key', 'search', 'podman')
+          | map(attribute='key')
+          | list
+        }}

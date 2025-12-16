@@ -1,0 +1,59 @@
+---
+- name: Login to Registry
+  hosts: localhost
+  become: false
+  gather_facts: false
+  vars_files:
+    - /home/ansible/ansible-lab-podman/group_vars/all/vault.yml  
+  vars:
+    registry_username: "{{ username_registry }}"
+    registry_password: "{{ pw_registry }}"
+  
+  tasks:
+    - name: Login to Red Hat Container Registry
+      containers.podman.podman_login:
+        registry: registry.access.redhat.com
+        username: "{{ registry_username }}"
+        password: "{{ registry_password }}"
+
+    - name: Runining  ubi image container
+      containers.podman.podman_container:
+        name: my_ubi_container
+        image: registry.access.redhat.com/ubi9/ubi:latest
+        state: started
+        detach: true
+        # ports:
+        #   - "8060:80"
+        memory: 1024m 
+        command: sleep infinity
+      register: ubi_container
+
+    - name: Verify avadible memeory inside the container
+      ansible.builtin.command:
+        cmd: podman inspect my_ubi_container --format '{{ "{{ .State.Pid }}"  }}'
+      register: memory_checks
+
+    - name: Show PID of the container
+      ansible.builtin.debug:
+        msg: "The PID of the container is {{ memory_checks.stdout }}"   
+
+    - name: Display memory info
+      ansible.builtin.command:
+        cmd: nsenter -t {{ memory_checks.stdout }} -n  free -h
+      register: memory_info
+      become: true  
+      changed_when: false
+    
+    - name: Show memory info
+      ansible.builtin.debug:
+        msg: "{{ memory_info.stdout }}"
+
+    - name: Show running containers
+      ansible.builtin.command:
+        cmd: podman ps
+      register: running_containers
+      changed_when: false
+
+    - name: Display running containers
+      ansible.builtin.debug:
+        msg: "{{ running_containers.stdout_lines }}"  

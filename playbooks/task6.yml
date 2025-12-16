@@ -1,0 +1,40 @@
+---
+ - name: Task6
+   hosts: localhost
+   become: false
+   gather_facts: false
+   ignore_errors: true
+  
+   tasks:
+    - name: Run image nginx
+      containers.podman.podman_container:
+        name: task6_nginx
+        image: docker.io/library/nginx:latest
+        state: started
+        detach: true
+      register: nginx_container
+
+    - name: Run command inside container
+      ansible.builtin.command:
+        cmd: podman exec task6_nginx sh -c "echo 'my data' > /tmp/datafile" 
+        
+
+    - name:  Create a new image with name customenginx, taht is based on this image adn which includes the custom fule vou've "'Created
+      ansible.builtin.command:
+        cmd: podman commit task6_nginx customnginx
+      register: commit_result
+
+    - name: Vreift that the new image customnginx exists
+      ansible.builtin.command:
+        cmd: podman images customnginx
+      register: image_check
+      changed_when: false
+
+    - name: Run customenginx image in a new container
+      containers.podman.podman_container:
+        name: custom_nginx_container
+        image: customnginx
+        state: started
+        detach: true
+        
+    

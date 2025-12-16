@@ -1,0 +1,126 @@
+---
+- name: Deploy Microservice with podman-compose
+  hosts: localhost
+  become: false
+  gather_facts: false 
+  vars:
+    network_name: micronet
+    volume_name: db_data   
+    frontend_container: frontend
+    backend_container: backend
+    frontend_image: docker.io/library/nginx:latest
+    backend_image: docker.io/bitnami/mariadb:latest
+    mariadb_root_password: mypassword
+    frontend_host_port: 8181
+    frontend_container_port: 80   # nginx default port
+    compose_dir: /home/ansible/ansible-lab-podman/podman-compose/microservice
+
+  tasks:
+    - name: Ensure required packages are installed
+      ansible.builtin.package:
+        name:
+          - podman
+          - podman-compose
+        state: present
+      become: true
+  
+    - name: Create network if not exists
+      ansible.builtin.command:
+        cmd: podman network create {{ network_name }}
+      register: network_create
+      changed_when: "'Created network' in network_create.stdout"
+      ignore_errors: true
+      
+
+    - name: Create volume if not exists
+      ansible.builtin.command:
+        cmd: podman volume create {{ volume_name }}
+      ignore_errors: true
+
+
+    - name: Create compose directory
+      ansible.builtin.file:
+        path: "{{ compose_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Create podman-compose.yml
+      ansible.builtin.copy:
+        dest: "{{ compose_dir }}/podman-compose.yml"
+        mode: '0644'
+        content: |
+          version: "3.8"
+          services:
+            backend:
+              image: "{{ backend_image }}"
+              container_name: "{{ backend_container }}"
+              environment:
+                - MARIADB_ROOT_PASSWORD={{ mariadb_root_password }}
+              volumes:
+                - db_data:/var/lib/mysql
+              networks:
+                - {{ network_name }}
+
+            frontend:
+              image: "{{ frontend_image }}"
+              container_name: "{{ frontend_container }}"
+              ports:
+                - "{{ frontend_host_port }}:{{ frontend_container_port }}"
+              networks:
+                - {{ network_name }}
+
+          volumes:
+            {{ volume_name }}:
+
+          networks:
+            {{ network_name }}:
+
+    - name: Stop existing containers if running
+      ansible.builtin.command:
+        cmd: podman-compose down
+        chdir: "{{ compose_dir }}"
+      ignore_errors: true
+      changed_when: false 
+
+    - name: Deploy microservice with podman-compose
+      ansible.builtin.command:
+        cmd: podman-compose up -d
+        chdir: "{{ compose_dir }}" 
+      register: compose_up
+      changed_when: "'Creating' in compose_up.stdout or 'Starting' in compose_up.stdout"
+    
+    - name: Wait for containers to be ready
+      ansible.builtin.pause:
+        seconds: 15
+    
+    - name: Verify network exists
+      ansible.builtin.command:
+        cmd: podman network inspect {{ network_name }}
+      register: network_inspect
+      changed_when: false
+
+    - name: Display network information
+      ansible.builtin.debug:
+        var: network_inspect.stdout_lines
+
+    - name: Verify volume exists
+      ansible.builtin.command:
+        cmd: podman volume inspect {{ volume_name }}
+      register: volume_inspect
+      changed_when: false
+
+    - name: Display volume information
+      ansible.builtin.debug:
+        var: volume_inspect.stdout_lines  
+
+    - name: Status of frontend container
+      ansible.builtin.command:
+        cmd: podman inspect {{ frontend_container }} --format '{{ "{{.State.Status}}" }}'
+      register: frontend_status
+      changed_when: false
+
+    - name: Status of backend container
+      ansible.builtin.command:
+        cmd: podman inspect {{ backend_container }} --format '{{ "{{.State.Status}}" }}'
+      register: backend_status
+      changed_when: false

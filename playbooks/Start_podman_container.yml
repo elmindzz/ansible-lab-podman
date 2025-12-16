@@ -1,0 +1,74 @@
+---
+- name: Deploy Nginx Container with Podman
+  hosts: localhost
+  ignore_errors: true 
+  become: false  # Rootless Podman
+  vars:
+    container_name: my_nginx_container
+    container_image: docker.io/library/nginx:latest
+    host_port: 8080
+    container_port: 80
+
+  tasks:
+    - name: Ensure Podman is installed
+      ansible.builtin.package:
+        name: podman
+        state: present
+      become: true
+
+    - name: Image of nginx pull
+      containers.podman.podman_image:
+        name: "{{ container_image }}"
+        state: present
+
+    - name: Create nginx data directory on host
+      ansible.builtin.file:
+        path: /tmp/nginx-data
+        state: directory
+        mode: '0755'
+
+
+    - name: Create and start Nginx container
+      containers.podman.podman_container:
+        name: "{{ container_name }}"
+        image: "{{ container_image }}"
+        state: started
+        recreate: false
+        restart_policy: always
+        ports:
+          - "{{ host_port }}:{{ container_port }}"
+        volumes:
+          - "/tmp/nginx-data:/usr/share/nginx/html:Z"
+        network:
+          - datanet
+
+        env:
+          TZ: "Europe"
+        labels:
+          app: "nginx"
+          environment: "production"
+        healthcheck:
+          test: ["CMD", "curl", "-f", "http://localhost/"]
+          interval: 30s
+          timeout: 10s
+          retries: 3
+      register: container_result
+
+    - name: Display container information
+      ansible.builtin.debug:
+        msg: |
+          Container Status:
+          - Name: {{ container_result.container.Name }}
+          - State: {{ container_result.container.State }}
+          - ID: {{ container_result.container.Id[:12] }}
+          - Ports: {{ host_port }} -> {{ container_port }}
+
+    - name: get container state
+      ansible.builtin.command:
+        cmd: podman inspect {{ container_name }} --format '{{ "{{.State.Status}}" }}'
+      register: container_state 
+
+
+    - name: Display test result
+      ansible.builtin.debug:
+        msg: "Nginx is responding on http://localhost:{{ host_port }}"

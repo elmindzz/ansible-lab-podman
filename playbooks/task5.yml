@@ -1,0 +1,34 @@
+---
+ - name: Task5
+   hosts: localhost
+   become: false
+   gather_facts: false
+
+   tasks:
+    - name: Start container with name "registry", which is based on the docker.io/library/registry image
+      containers.podman.podman_container:
+        name : registry
+        image: docker.io/library/registry:latest
+        state: started
+        ports:
+          - "5000:5000"
+
+    - name: Verify that the registry container is running
+      ansible.builtin.command:
+        cmd: podman ps --filter "name=registry" --filter "status=running"
+      register: registry_container
+      changed_when: false
+
+    - name: Generate systemd service file
+      ansible.builtin.command:
+        cmd: podman generate systemd --name registry --files --new
+      args:
+        chdir: ~/.config/systemd/user
+        creates: ~/.config/systemd/user/container-registry.service
+
+    - name: Enable registry on boot
+      ansible.builtin.systemd:
+        name: container-registry.service
+        enabled: true
+        daemon_reload: true
+        scope: user

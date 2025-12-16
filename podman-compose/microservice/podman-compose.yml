@@ -1,0 +1,25 @@
+version: "3.8"
+services:
+  backend:
+    image: "docker.io/bitnami/mariadb:latest"
+    container_name: "backend"
+    environment:
+      - MARIADB_ROOT_PASSWORD=mypassword
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - micronet
+
+  frontend:
+    image: "docker.io/library/nginx:latest"
+    container_name: "frontend"
+    ports:
+      - "8181:80"
+    networks:
+      - micronet
+
+volumes:
+  db_data:
+
+networks:
+  micronet:

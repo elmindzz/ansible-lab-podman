@@ -1,0 +1,71 @@
+---
+- name: task7 
+  hosts: localhost
+  become: false
+  gather_facts: false 
+
+  tasks:
+   - name: Create Containerfile for custom httpd image
+     ansible.builtin.file:
+      path: /home/ansible/ansible-lab-podman/playbook/task7
+      state: directory
+     register: task7_dir
+
+   - name: Folder creation
+     ansible.builtin.group:
+        name: data
+        state: present
+     become: true
+
+   - name: Create data folder in the host system
+     ansible.builtin.file:
+        path: /home/ansible/data
+        state: directory
+        owner: '1111'
+        group: data
+        mode: '0755'
+     become: true
+     register: data_folde
+
+   
+   - name: Check folder permissions
+     ansible.builtin.command:
+      cmd: ls -ld /home/ansible/data
+     register: folder_perms
+     changed_when: false
+
+   - name: Create Containerfile
+     ansible.builtin.copy:
+       dest: /home/ansible/ansible-lab-podman/playbook/task7/Containerfile
+       content: |
+         FROM registry.access.redhat.com/ubi9/ubi
+         LABEL maintainer="Elmin"
+         RUN useradd -u 1111 fileman
+         USER fileman
+
+   - name: Build image from Containerfile
+     containers.podman.podman_image:
+      name: filecreate
+      path: /home/ansible/ansible-lab-podman/playbook/task7
+      build:
+       file: Containerfile
+      state: build
+
+   - name: Build image from Containerfile
+     containers.podman.podman_image:
+       name: filecreate    
+       tag: latest
+       path: /home/ansible/ansible-lab-podman/playbook/task7
+       build:
+        file: Containerfile
+       state: build
+
+
+   - name: Run container with volume
+     containers.podman.podman_container:
+      name: filecreate_container
+      image: filecreate_container:latest
+      state: started
+      command: sleep infinity
+      volumes:
+        - /home/ansible/data:/home/fileman/data

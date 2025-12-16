@@ -1,0 +1,24 @@
+---
+- name: Task2
+  hosts: localhost
+  become: false
+  gather_facts: false
+  tasks:
+   - name: Create Containerfile
+     ansible.builtin.copy:
+       dest: /home/ansible/ansible-lab-podman/playbooks/Dockerfile
+       content: |
+         FROM docker.io/library/mariadb:latest
+         LABEL maintainer="Elmin"
+         ARG DB_PASSWORD
+         ENV MARIADB_ROOT_PASSWORD=${DB_PASSWORD}
+
+   - name: Build MariaDB custom image
+     containers.podman.podman_image:
+      name: task2:latest
+      path: /home/ansible/ansible-lab-podman/playbooks
+      state: present
+      build:
+        extra_args: "--build-arg DB_PASSWORD=task2pw"
+
+
